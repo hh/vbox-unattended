@@ -1,0 +1,165 @@
+research paper:
+Copyright (c) 2011-2012 Alexey Eromenko "Technologov"
+
+I have analyzed VMware Workstation 8 product and Red Hat's Oz project:
+
+Several backends found: 
+ Red Hat Anaconda kickstart,
+ Windows NT 5.x 
+ Windows NT 6.x
+ Debian preseed
+ SUSE AutoYast
+
+The scripts for each backend is generated on the fly, based on template.
+--------------------------------------
+Part A: Windows unattended:
+--------------------------------------
+
+Windows NT 5.x unattended scripts: (family includes Windows 2000/XP/2003)
+is just single file 'winnt.sif' on floppy, that has INI-like syntax.
+Windows NT 6.x unattended scripts: (family includes Windows Vista/7/2008)
+is just single file 'autounattend.xml' on floppy, that has XML-like syntax.
+Docs about both formats can be found on Google.
+
+It allows for both for semi-automatic and fully-automatic installs.
+NT 5.x Scripts are easy-to-read plain text.
+NT 6.x are XML format, so are harder to read by human, 
+  but there is a GUI tool that can help you (Windows AIK).
+
+For VBox deployment, I recommend to use 2 CDs + floppy. 
+(1st CD = Windows (bootable), 2nd CD = Guest Additions.iso, custom-made-floppy.img (w/unattended))
+
+We must:
+1. generate the Windows-unattended scripts (winnt.sif and autounattend.xml),
+2. create a FAT12-formatted 1.44 MB standard empty floppy image.
+3. put the Windows-unattended scripts into the floppy image.
+
+Steps:
+Linux hosts:
+stage 1. is done by python strings parser.
+stage 2a. dd if=/dev/zero of=/tmp/myfloppy.img count=1440 bs=1024 (create floppy image)
+stage 2b. mkfs.msdos /tmp/myfloppy.img (format floppy image)
+stage 3. mcopy -i /tmp/myfloppy.img winnt.sif autounattend.xml :: (copy file 1+2 into floppy image)
+note: syntax of 'mcopy' is DOS-like [from] [from] ... [to], while "::" means to floppy image. Image must be specified using '-i [image]' parameter.
+
+Problems:
+stage 2 and stage 3 are impossible on Windows hosts without C coding.
+(on Linux I use 'dd' and 'mkfs.msdos' for stage 2; 'mtools' for stage 3)
+Possible Solutions:
+stage 2: ship empty pre-formatted floppy image inside "vbox-unattended" for Windows hosts. (if zipped, it takes only few kilobytes)
+stage 3: compile 'mtools' on Cygwin ?
+
+Official Microsoft documentation about NT 6.x:
+http://technet.microsoft.com/en-us/library/cc722132(WS.10).aspx
+More examples about NT 6.x:
+http://forums.mydigitallife.info/archive/index.php/t-13284.html
+--------------------------------------
+
+Linux guests -- All of them - Red Hat, SUSE, and Debian, do not automatically
+ to read scripts from floppy,
+which requires unattended users to remaster their bootable CD images.
+
+--------------------------------------
+Part B: Red Hat Anaconda kickstart:
+--------------------------------------
+
+(family includes RHEL3/4/5/6, CentOS, Scientific Linux and Oracle Enterprise Linux,
+  that claims to be 'Unbreakble') :)
+(a bit harder to support, but also possible is: Fedora)
+Those are much more complex. Anaconda, by default, does not read kickstart config files
+from floppy, unlike Windows.
+
+Scripts are easy-to-read plain text.
+It allows for both for semi-automatic and fully-automatic installs.
+
+The end result, is that there is a need to generate cusom-made bootable ISO,
+that includes linux kernel, initrd, and kickstart config file.
+In addition, I also recommend putting VBoxLinuxAdditions.run on the 2nd CD,
+so they could be automatically deployed.
+Basically Linux case requires re-mastering of the bootable Linux CD on-the-fly.
+
+For VBox deployment, I recommend to use 2 CDs. 
+(1st CD = custom-made.iso (bootable), 2nd CD = Red Hat Enterprise Linux)
+
+We must:
+1. generate RedHat-kickstart scripts
+2. extract Linux-kernel, initrd, bootloader from original Red-Hat-like DVD.
+3. extract VBoxLinuxAdditions.run from GuestAdditions.iso.
+4. generate bootable custom-made iso, that uses components from steps #1, #2, #3.
+
+Steps:
+Linux hosts:
+stage 1. is done by python strings parser.
+stages 2+3: 7z e /path/Red-Hat-like.iso isolinux/ && rm -Rvf isolinux/
+(Alternative: can be done via 'mount -o loop')
+stage 4: $ genisoimage -o /tmp/boot-ks.iso -r -b isolinux.bin -c boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -R -J -v -T .
+(Alternative: can be done via 'mkisofs')
+(VMware WS 7 uses 'mkisofs' on Windows hosts for stage 4)
+Problems:
+Is including and invoking LGPLed utility (7-zip) acceptable for VirtualBox team, if this code to be upstreamed ?
+
+More read:
+Red Hat kickstart configurator GUI:
+http://docs.redhat.com/docs/en-US/Red_Hat_Enterprise_Linux/6/html/Installation_Guide/ch-redhat-config-kickstart.html
+
+--------------------------------------
+Part C: Debian installer preseed:
+--------------------------------------
+
+Debian actually provides not one, but two (!) methods of unattended installation:
+- FAI (Fully Automatic Installation) and Debian Preseed.
+
+In this material I cover the later, because the former doesn't suit our needs.
+
+About FAI: from my very quick review, it seems to require very complex host-side 
+scripting, that are part of Debian.
+It will likely work only on Debian hosts, or from Debian servers. Doesn't suit our needs.
+
+Preseed is in some ways similar to Red Hat kickstart, but more picky at some places, and requires more work;
+Scripts are easy-to-read plain text.
+It allows for both for semi-automatic and fully-automatic installs, by pre-seeding ready results.
+For example it doesn't allows to boot from CD-A and load preseed script from same CD-A,
+but install from CD-B.
+So here we boot from CD-A, read script from floppy, then install from CD-B.
+Moreover, preseed requires more parameters to be passed to the kernel.
+
+isolinux.cfg:
+  kernel /install.386/vmlinuz
+  append initrd=/install.386/initrd.gz debian-installer/locale=en_US console-setup/layoutcode=us netcfg/choose_interface=auto priority=critical preseed/file=/floppy/preseed.cfg --
+
+If you forget to specify "locale" or "layoutcode", the d-i (debian installer) 
+will ask the user about those interactively, converting our install to semi-automatic.
+priority=critical is related to the amount of questions that various "deb"
+ packages usually ask (such as which Display Manager to use: XDM or KDM).
+
+We must:
+1. generate Debian-preseed scripts and isolinux.cfg
+2. extract Linux-kernel, initrd, bootloader from original Debian media. (install.{arch}/ and isolinux/)
+3. extract VBoxLinuxAdditions.run from GuestAdditions.iso.
+4. generate bootable custom-made iso, that uses components from steps #1, #2, #3.
+5. create a FAT12-formatted 1.44 MB standard empty floppy image.
+6. put the Debian-preseed scripts into the floppy image.
+
+For VBox deployment, I recommend to use 2 CDs+1 floppy. 
+(1st CD = custom-made.iso (bootable), 2nd CD = Debian, custom-made-floppy.img (w/preseed))
+
+Steps:
+Similar to RedHat + Windows combined.
+
+More reading about preseed:
+debian-squeeze-example-preseed.txt
+-and-
+http://www.debian-administration.org/article/Automating_new_Debian_installations_with_preseeding/print
+Squeeze-specific "apt" groups:
+http://d-i.alioth.debian.org/tmp/en.i386/apbs04.html#preseed-apt
+
+--------------------------------------
+Part D: SUSE AutoYast:
+--------------------------------------
+(family includes SUSE Linux Enterprise and openSUSE)
+
+SUSE's AutoYast automatic installer in it's logic and concept is similar to Red Hat's kickstart.
+Both depend on 2 CD-ROMs being loaded, and both don't need any floppy.
+Major difference is the actual format, that uses XML format.
+
+-Technologov

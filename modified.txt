@@ -1,0 +1,34 @@
+
+Due to it's alpha quality the software may break, so use at your own risk !
+
+TODO:
+-Windows host support
+-more tests and stability
+-write pyQt4 GUI for it
+
+Small things TODO:
+-audio
+-network
+-add ability to customize unattended script (for advanced users) - 
+it will let us surpass proprietary competition. (on the second thought, 
+it probably doesn't improve productivity - 
+advanced admins can customize their OS either way - however, it is _very_ useful for education)
+-auto-detect host OS language and keybd layout and recommend this for Linux guests.
+-Install OS into RAM disk then deploy to HDD ?
+Linux integration:
+-default timezone = London ? UTC or localtime ?
+
+read:
+http://tim.oreilly.com/pub/a/linux/2004/11/04/advanced_kickstart.htmlev
+
+Possible groups in Red-Hat-like systems:
+http://www.cyberciti.biz/faq/rhel-centos-fedora-linux-yum-command-howto/
+
+Changelog:
+v0.1 - 2011-12-19: First release. supports Linux hosts and only Windows NT 5.x and NT 6.x guests
+v0.2 - 2011-12-20: added support for Red-Hat-like Linux guests (via Red Hat Anaconda kickstart backend)
+v0.3 - 2011-12-24: added support for VirtualBox Guest Additions + improved stability.
+v0.4 - 2011-12-29: added support for Debian Linux guests (via Debian preseed backend)
+v0.5 - 2011-12-31: added support for SUSE Linux guests (via AutoYast backend) + improved code arch.
+HAPPY NEW YEAR 2012 !
+v0.5.1-2012-01-01: improved support for Debian guests by a *huge* margin.
